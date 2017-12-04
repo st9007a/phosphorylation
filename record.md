@@ -4,7 +4,7 @@
 
 ### CNN
 
-| CNN |
+| CNN | |
 |---------------------------------|---------------------|
 | Conv1D filter 1x1 channel 200   | regularization L1 0 |
 | Dropout 0.75                    |                     |
