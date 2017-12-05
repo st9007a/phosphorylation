@@ -30,17 +30,17 @@ h_conv3 = tf.nn.relu(h_conv3) + b_conv3
 seq_domain_entry = tf.reshape(h_conv3, [-1, 16, 200])
 fm_domain_entry = tf.transpose(seq_domain_entry, perm = [0, 2, 1])
 
-def attention(tensor):
+def attention(tensor, dim):
     input_dim = int(tensor.get_shape()[2])
     input_length = int(tensor.get_shape()[1])
 
     tensor_unpack = tf.unstack(tensor, axis = 1)
 
-    w0 = weight_var([input_dim, 10])
-    b0 = bias_var([10])
+    w0 = weight_var([input_dim, dim])
+    b0 = bias_var([dim])
     energy = [tf.matmul(t, w0) + b0 for t in tensor_unpack]
 
-    w1 = weight_var([10, 1])
+    w1 = weight_var([dim, 1])
     b1 = bias_var([1])
     energy = [tf.matmul(t, w1) + b1 for t in energy]
 
@@ -51,9 +51,27 @@ def attention(tensor):
     weighted_sum = tf.reduce_sum(tensor * tf.expand_dims(energy, -1), 1)
     return weighted_sum
 
-merged = tf.concat([attention(seq_domain_entry), attention(fm_domain_entry)], axis = 1)
+merged = tf.concat([attention(seq_domain_entry, dim = 8), attention(fm_domain_entry, dim = 10)], axis = 1)
 
-w_output = weight_var([200 + 16, 1])
-b_output = bias_var([1])
-raw_output = tf.matmul(merged, w_output) + b_output
+w_merge1 = weight_var([200 + 16, 149])
+b_merge1 = bias_var([149])
+h_merge1 = tf.nn.relu(tf.matmul(merged, w_merge1) + b_merge1)
+h_merge1 = tf.nn.dropout(h_merge1, keep_prob = 0.298224)
 
+w_merge2 = weight_var([149, 8])
+b_merge2 = bias_var([8])
+h_merge2 = tf.nn.relu(tf.matmul(h_merge1, w_merge2) + b_merge2)
+
+w_output = weight_var([8, 2])
+b_output = bias_var([2])
+raw_output = tf.nn.relu(tf.matmul(h_merge2, w_output) + b_output)
+
+loss = tf.nn.softmax_cross_entropy_with_logits(logits = raw_output, labels = y)
+train_step = tf.train.AdamOptimizer(1e-3).minimize(loss)
+
+accuracy = tf.reduce_mean(
+    tf.cast(
+        tf.equal(tf.argmax(raw_output, 1), tf.argmax(y, 1)), \
+        tf.float32 \
+    )
+)
