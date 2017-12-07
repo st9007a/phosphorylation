@@ -1,7 +1,10 @@
 #!/usr/bin/python3
 import numpy as np
 
-def next_batch(x, y, batch_size, times):
+x = np.load('data/train_data_X.npy')
+y = np.load('data/train_data_Y.npy')
+
+def next_batch(batch_size, times):
     global z, x1, y1
     if times == 1:
         combined = np.c_[x.reshape(len(x), -1), y.reshape(len(y), -1)]
