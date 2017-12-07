@@ -88,7 +88,7 @@ class Classifier():
         h_merge1 = tf.matmul(merged, w_merge1) + b_merge1
         h_merge1 = batch_normalization(h_merge1)
         h_merge1 = tf.nn.relu(h_merge1)
-        # h_merge1 = tf.nn.dropout(h_merge1, keep_prob = 0.298224)
+        h_merge1 = tf.nn.dropout(h_merge1, keep_prob = 0.298224)
 
         w_merge2 = weight_var([149, 8])
         b_merge2 = bias_var([8])
@@ -101,7 +101,6 @@ class Classifier():
         raw_output = tf.nn.relu(tf.matmul(h_merge2, w_output) + b_output)
 
 
-        # with tf.device('/cpu:0'):
         self.predict = tf.nn.softmax(raw_output)
         self.loss = tf.nn.softmax_cross_entropy_with_logits(logits = raw_output, labels = self.y)
         self.train_step = tf.train.AdamOptimizer(1e-3).minimize(self.loss)
@@ -112,14 +111,16 @@ class Classifier():
             )
         )
 
+        self.auc = tf.metrics.auc(labels = self.y, predictions = tf.nn.softmax(raw_output))
+
     def train(self, batch_size, steps):
 
         config = tf.ConfigProto()
         config.gpu_options.per_process_gpu_memory_fraction = 0.5
 
         self.session = tf.Session(config = config)
-        # self.session = tf.Session()
-        self.session.run(tf.global_variables_initializer())
+        init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+        self.session.run(init)
 
         batcher = Batcher(batch_size)
         x_eval, y_eval = get_validation()
@@ -129,8 +130,9 @@ class Classifier():
             self.session.run(self.train_step, feed_dict = {self.x: x_batch, self.y: y_batch})
 
             if i % 100 == 0:
-                accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_eval, self.y: y_eval})
-                loss = self.session.run(self.loss, feed_dict = {self.x: x_eval, self.y: y_eval})
-                print("acc: " + str(accuracy) + ", loss: " + str(loss) + ", step: " + str(i))
+                train_accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_batch, self.y: y_batch})
+                test_accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_eval, self.y: y_eval})
+                auc, _ = self.session.run(self.auc, feed_dict = {self.x: x_eval, self.y: y_eval})
+                print("train acc: " + str(train_accuracy) + ", test acc: " + str(test_accuracy) + ", test auc: " + str(auc) + ", step: " + str(i))
 
         self.session.close()
