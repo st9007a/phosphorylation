@@ -2,7 +2,7 @@
 import numpy as np
 
 x = np.load('data/train_data_X.npy')
-y = np.load('data/train_data_Y.npy')
+y = np.load('data/train_data_Y_conv.npy')
 
 def next_batch(batch_size, times):
     global z, x1, y1
