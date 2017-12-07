@@ -101,6 +101,7 @@ class Classifier():
 
             if i % 100 == 0:
                 accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_eval, self.y: y_eval})
-                print("eval: " + str(accuracy) + ", step: " + str(i))
+                loss = self.session.run(self.loss, feed_dict = {self.x: x_eval, self.y: y_eval})
+                print("acc: " + str(accuracy) + ", loss: " + str(loss) + ", step: " + str(i))
 
         self.session.close()
