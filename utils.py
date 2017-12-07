@@ -5,7 +5,7 @@ x = np.load('data/train_data_X_conv.npy')
 y = np.load('data/train_data_Y_conv.npy')
 
 def next_batch(batch_size, times):
-    global z, x1, y1
+    global z, x1, y1, combined
     if times == 0:
         combined = np.c_[x.reshape(len(x), -1), y.reshape(len(y), -1)]
         x1 = combined[:, :x.size//len(x)].reshape(x.shape)
