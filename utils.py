@@ -19,23 +19,15 @@ class Batcher():
 
     def next_batch(self):
 
-        times = self.times
-        x = self.x
-        y = self.y
-        batch_size = self.batch_size
-
-        curr = (times + 1) % (np.shape(y)[0]//batch_size)
-        if curr == 0:
-            curr = np.shape(y)[0]//batch_size
-
-        if curr == 1:
+        if self.times == 0:
             np.random.shuffle(self.combined)
 
-        #print("y.size = ", np.shape(y)[0]//batch_size, "times = ", times, "curr = ", curr)
+        #print("y.size = ", np.shape(self.y)[0]//self.batch_size, "times = ", self.times)
         self.times += 1
+        self.times %= (np.shape(self.y)[0]//self.batch_size)
 
-        #print("batch ", batch_size*(curr-1), " to ", batch_size*curr)
-        return self.x1[batch_size*(curr-1):batch_size*curr], self.y1[batch_size*(curr-1):batch_size*curr]
+        #print("batch ", self.batch_size*self.times, " to ", self.batch_size*(self.times+1))
+        return self.x1[self.batch_size*self.times:self.batch_size*(self.times+1)], self.y1[self.batch_size*self.times:self.batch_size*(self.times+1)]
 
 def get_validation():
     x_va = np.load('data/validation_data_X_conv.npy')
@@ -48,3 +40,4 @@ def test():
     for i in range (0, 1000):
         a, b = ba.next_batch()
         print(np.shape(a), np.shape(b))
+
