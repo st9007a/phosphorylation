@@ -30,10 +30,10 @@ class Batcher():
         return self.x1[self.batch_size*self.times:self.batch_size*(self.times+1)], self.y1[self.batch_size*self.times:self.batch_size*(self.times+1)]
 
 def get_validation():
-    x_va = np.load('data/validation_data_X_conv.npy')
-    y_va = np.load('data/validation_data_Y_conv.npy')
+    x = np.load('data/test_data_X_conv.npy')
+    y = np.load('data/test_data_Y_conv.npy')
 
-    return x_va, y_va
+    return x, y
 
 def test():
     ba = Batcher(batch_size = 100)
