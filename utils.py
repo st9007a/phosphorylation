@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 import numpy as np
 
-x = np.load('data/train_data_X.npy')
+x = np.load('data/train_data_X_conv.npy')
 y = np.load('data/train_data_Y_conv.npy')
 
 def next_batch(batch_size, times):
@@ -20,3 +20,8 @@ def next_batch(batch_size, times):
 
     return x1[batch_size*(curr-1):batch_size*curr], y1[batch_size*(curr-1):batch_size*curr]
 
+def get_validation():
+    x = np.load('data/validation_data_X_conv.npy')
+    y = np.load('data/validation_data_Y_conv.npy')
+
+    return x, y

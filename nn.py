@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import tensorflow as tf
+from utils import next_batch, get_validation
 
 def weight_var(shape):
     return tf.Variable(tf.truncated_normal(shape, stddev = 0.1))
@@ -31,16 +32,17 @@ def attention(tensor, dim):
 class Classifier():
 
     def __init__(self):
-        self.x = tf.placeholder(tf.float32, shape = [None, 33, 21, 1])
-        self.y = tf.placeholder(tf.float32, shape = [None, 1])
+        self.x = tf.placeholder(tf.float32, shape = [None, 33, 21])
+        self.y = tf.placeholder(tf.float32, shape = [None, 2])
 
         self.build()
 
     def build(self):
+        x_reshape = tf.reshape(self.x, [-1, 33, 21, 1])
 
         w_conv1 = weight_var([1, 21, 1, 200])
         b_conv1 = bias_var([200])
-        h_conv1 = tf.nn.conv2d(self.x, w_conv1, strides = [1, 1, 1, 1], padding = 'VALID')
+        h_conv1 = tf.nn.conv2d(x_reshape, w_conv1, strides = [1, 1, 1, 1], padding = 'VALID')
         h_conv1 = tf.nn.dropout(h_conv1, keep_prob = 0.75)
         h_conv1 = tf.nn.relu(h_conv1) + b_conv1
 
@@ -84,5 +86,21 @@ class Classifier():
             )
         )
 
-    def train(self, batch_size, dataset, steps):
-        pass
+    def train(self, batch_size, steps):
+
+        config = tf.ConfigProto()
+        config.gpu_options.per_process_gpu_memory_fraction = 0.6
+
+        self.session = tf.Session(config = config)
+        self.session.run(tf.global_variables_initializer())
+
+        x_eval, y_eval = get_validation()
+        for i in range(steps):
+            x_batch, y_batch = next_batch(200, i)
+            self.session.run(self.train_step, feed_dict = {self.x: x_batch, self.y: y_batch})
+
+            if i % 100 == 0:
+                accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_eval, self.y: y_eval})
+                print("eval: " + str(accuracy) + ", step: " + str(i))
+
+        self.session.close()
