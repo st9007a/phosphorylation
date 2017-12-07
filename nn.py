@@ -75,23 +75,25 @@ class Classifier():
         b_output = bias_var([2])
         raw_output = tf.nn.relu(tf.matmul(h_merge2, w_output) + b_output)
 
-        self.predict = tf.nn.softmax(raw_output)
-        self.loss = tf.nn.softmax_cross_entropy_with_logits(logits = raw_output, labels = self.y)
-        self.train_step = tf.train.AdamOptimizer(1e-3).minimize(self.loss)
 
-        self.accuracy = tf.reduce_mean(
-            tf.cast(
-                tf.equal(tf.argmax(raw_output, 1), tf.argmax(self.y, 1)), \
-                tf.float32 \
+        with tf.device('/cpu:0'):
+            self.predict = tf.nn.softmax(raw_output)
+            self.loss = tf.nn.softmax_cross_entropy_with_logits(logits = raw_output, labels = self.y)
+            self.train_step = tf.train.AdamOptimizer(1e-4).minimize(self.loss)
+            self.accuracy = tf.reduce_mean(
+                tf.cast(
+                    tf.equal(tf.argmax(raw_output, 1), tf.argmax(self.y, 1)), \
+                    tf.float32 \
+                )
             )
-        )
 
     def train(self, batch_size, steps):
 
         config = tf.ConfigProto()
-        config.gpu_options.per_process_gpu_memory_fraction = 0.6
+        config.gpu_options.per_process_gpu_memory_fraction = 0.5
 
         self.session = tf.Session(config = config)
+        # self.session = tf.Session()
         self.session.run(tf.global_variables_initializer())
 
         x_eval, y_eval = get_validation()
