@@ -22,11 +22,11 @@ class Batcher():
         if self.times == 0:
             np.random.shuffle(self.combined)
 
-        #print("y.size = ", np.shape(self.y)[0]//self.batch_size, "times = ", self.times)
         self.times += 1
         self.times %= (np.shape(self.y)[0]//self.batch_size)
 
-        #print("batch ", self.batch_size*self.times, " to ", self.batch_size*(self.times+1))
+        print("y.size = ", np.shape(self.y)[0]//self.batch_size, "times = ", self.times)
+        print("batch ", self.batch_size*self.times, " to ", self.batch_size*(self.times+1))
         return self.x1[self.batch_size*self.times:self.batch_size*(self.times+1)], self.y1[self.batch_size*self.times:self.batch_size*(self.times+1)]
 
 def get_validation():
