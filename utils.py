@@ -25,11 +25,17 @@ class Batcher():
         self.times += 1
         self.times %= (np.shape(self.y)[0]//self.batch_size)
 
-        print("y.size = ", np.shape(self.y)[0]//self.batch_size, "times = ", self.times)
-        print("batch ", self.batch_size*self.times, " to ", self.batch_size*(self.times+1))
+        # print("y.size = ", np.shape(self.y)[0]//self.batch_size, "times = ", self.times)
+        # print("batch ", self.batch_size*self.times, " to ", self.batch_size*(self.times+1))
         return self.x1[self.batch_size*self.times:self.batch_size*(self.times+1)], self.y1[self.batch_size*self.times:self.batch_size*(self.times+1)]
 
 def get_validation():
+    x = np.load('data/validation_data_X_conv.npy')
+    y = np.load('data/validation_data_Y_conv.npy')
+
+    return x, y
+
+def get_test():
     x = np.load('data/test_data_X_conv.npy')
     y = np.load('data/test_data_Y_conv.npy')
 

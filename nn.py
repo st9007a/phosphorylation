@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import tensorflow as tf
-from utils import Batcher, get_validation
+from utils import Batcher, get_validation, get_test
 
 def weight_var(shape):
     return tf.Variable(tf.truncated_normal(shape, stddev = 0.1))
@@ -27,7 +27,7 @@ def attention(tensor, dim):
     energy = tf.nn.softmax(energy)
 
     weighted_sum = tf.reduce_sum(tensor * tf.expand_dims(energy, -1), 1)
-    return weighted_sum
+    return weighted_sum, w0, w1
 
 
 def batch_normalization(entry_tensor):
@@ -62,14 +62,14 @@ class Classifier():
         b_conv1 = bias_var([200])
         h_conv1 = tf.nn.conv2d(x_reshape, w_conv1, strides = [1, 1, 1, 1], padding = 'VALID')
         h_conv1 = batch_normalization(h_conv1)
-        # h_conv1 = tf.nn.dropout(h_conv1, keep_prob = 0.75)
+        h_conv1 = tf.nn.dropout(h_conv1, keep_prob = 0.75)
         h_conv1 = tf.nn.relu(h_conv1) + b_conv1
 
         w_conv2 = weight_var([9, 1, 200, 150])
         b_conv2 = bias_var([150])
         h_conv2 = tf.nn.conv2d(h_conv1, w_conv2, strides = [1, 1, 1, 1], padding = 'VALID')
         h_conv2 = batch_normalization(h_conv2)
-        # h_conv2 = tf.nn.dropout(h_conv2, keep_prob = 0.75)
+        h_conv2 = tf.nn.dropout(h_conv2, keep_prob = 0.75)
         h_conv2 = tf.nn.relu(h_conv2) + b_conv2
 
         w_conv3 = weight_var([10, 1, 150, 200])
@@ -81,7 +81,9 @@ class Classifier():
         seq_domain_entry = tf.reshape(h_conv3, [-1, 16, 200])
         fm_domain_entry = tf.transpose(seq_domain_entry, perm = [0, 2, 1])
 
-        merged = tf.concat([attention(seq_domain_entry, dim = 8), attention(fm_domain_entry, dim = 10)], axis = 1)
+        seq_att, seq_att_w0, seq_att_w1 = attention(seq_domain_entry, dim = 8)
+        fm_att, fm_att_w0, fm_att_w1 = attention(fm_domain_entry, dim = 10)
+        merged = tf.concat([seq_att, fm_att], axis = 1)
 
         w_merge1 = weight_var([200 + 16, 149])
         b_merge1 = bias_var([149])
@@ -102,8 +104,13 @@ class Classifier():
 
 
         self.predict = tf.nn.softmax(raw_output)
-        self.loss = tf.nn.softmax_cross_entropy_with_logits(logits = raw_output, labels = self.y)
-        self.train_step = tf.train.AdamOptimizer(1e-3).minimize(self.loss)
+        self.loss = tf.nn.softmax_cross_entropy_with_logits(logits = raw_output, labels = self.y) \
+            + 2 * tf.nn.l2_loss(seq_att_w0) \
+            + 2 * tf.nn.l2_loss(seq_att_w1) \
+            + 0.151948 * tf.nn.l2_loss(fm_att_w0) \
+            + 0.151948 * tf.nn.l2_loss(fm_att_w1)
+
+        self.train_step = tf.train.AdamOptimizer(5e-4).minimize(self.loss)
         self.accuracy = tf.reduce_mean(
             tf.cast(
                 tf.equal(tf.argmax(raw_output, 1), tf.argmax(self.y, 1)), \
@@ -111,7 +118,7 @@ class Classifier():
             )
         )
 
-        self.auc = tf.metrics.auc(labels = self.y, predictions = tf.nn.softmax(raw_output))
+        self.auc = tf.metrics.auc(labels = self.y, predictions = tf.nn.softmax(raw_output), num_thresholds = 494)
 
     def train(self, batch_size, steps):
 
@@ -124,6 +131,7 @@ class Classifier():
 
         batcher = Batcher(batch_size)
         x_eval, y_eval = get_validation()
+        x_test, y_test = get_test()
 
         for i in range(steps):
             x_batch, y_batch = batcher.next_batch()
@@ -131,8 +139,10 @@ class Classifier():
 
             if i % 100 == 0:
                 train_accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_batch, self.y: y_batch})
-                test_accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_eval, self.y: y_eval})
-                auc, _ = self.session.run(self.auc, feed_dict = {self.x: x_eval, self.y: y_eval})
-                print("train acc: " + str(train_accuracy) + ", test acc: " + str(test_accuracy) + ", test auc: " + str(auc) + ", step: " + str(i))
+                valid_accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_eval, self.y: y_eval})
+                test_accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_test, self.y: y_test})
+                valid_auc = self.session.run(self.auc, feed_dict = {self.x: x_eval, self.y: y_eval})
+                test_auc = self.session.run(self.auc, feed_dict = {self.x: x_test, self.y: y_test})
+                print("train acc: " + str(train_accuracy) + ", valid acc: " + str(valid_accuracy) + ", test acc: " + str(test_accuracy) + ", valid auc: " + str(valid_auc) + ", test auc: " + str(test_auc) + ", step: " + str(i))
 
         self.session.close()
