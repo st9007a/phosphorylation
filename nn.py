@@ -47,7 +47,116 @@ def batch_normalization(entry_tensor):
                                    variance_epsilon = 1e-3)
     return bn
 
-class Classifier():
+class CNN():
+
+    def __init__(self):
+        self.x = tf.placeholder(tf.float32, shape = [None, 10, 33])
+        self.y = tf.placeholder(tf.float32, shape = [None, 2])
+
+        self.build()
+
+    def conv_layer(self, input_tensor, filter_size, channels, patch = 1):
+        current_channels = int(input_tensor.get_shape()[3])
+
+        w = weight_var(filter_size + [current_channels, channels])
+        b = bias_var([channels])
+        h = tf.nn.conv2d(input_tensor, w, strides = [1, patch, patch, 1], padding = 'SAME') + b
+        h = batch_normalization(h)
+        h = tf.nn.relu(h)
+
+        return h
+
+    def dense_layer(self, input_tensor, out_dim, act = tf.nn.relu):
+        current_dim = int(input_tensor.get_shape()[1])
+
+        w = weight_var([current_dim, out_dim])
+        b = bias_var([out_dim])
+        h = tf.matmul(input_tensor, w) + b
+        h = batch_normalization(h)
+        h = act(h)
+
+        return h, w
+
+    def build(self):
+        self.dropout1 = tf.placeholder(tf.float32)
+        self.dropout2 = tf.placeholder(tf.float32)
+        x_reshape = tf.reshape(self.x, [-1, 10, 33, 1])
+
+        h_conv1 = self.conv_layer(x_reshape, filter_size = [3, 3], channels = 64)
+        h_conv2 = self.conv_layer(h_conv1, filter_size = [3, 3], channels = 64)
+
+        h_reduce1 = self.conv_layer(h_conv2, filter_size = [2, 2], channels = 64, patch = 2)
+
+        # size: 5 * 17
+        h_conv3 = self.conv_layer(h_reduce1, filter_size = [3, 3], channels = 128)
+        h_conv4 = self.conv_layer(h_conv3, filter_size = [3, 3], channels = 128)
+
+        h_reduce2 = self.conv_layer(h_conv4, filter_size = [2, 2], channels = 128, patch = 2)
+
+        # size: 3 * 9
+        h_conv5 = self.conv_layer(h_reduce2, filter_size = [3, 3], channels = 256)
+        h_conv6 = self.conv_layer(h_conv5, filter_size = [3, 3], channels = 256)
+        h_conv7 = self.conv_layer(h_conv6, filter_size = [3, 3], channels = 256)
+
+        h_reduce3 = self.conv_layer(h_conv7, filter_size = [2, 2], channels = 128, patch = 2)
+
+        # size: 2 * 5
+        h_conv8 = self.conv_layer(h_reduce3, filter_size = [3, 3], channels = 512)
+        h_conv9 = self.conv_layer(h_conv8, filter_size = [3, 3], channels = 512)
+        h_conv10 = self.conv_layer(h_conv9, filter_size = [3, 3], channels = 512)
+
+        h_conv11 = self.conv_layer(h_conv10, filter_size = [3, 3], channels = 128)
+
+        h_pool4 = tf.nn.avg_pool(h_conv11, ksize = [1, 2, 5, 1], strides = [1, 2, 5, 1], padding = 'SAME')
+
+        flatten = tf.reshape(h_pool4, [-1, 128])
+
+        h_fc, w_fc = self.dense_layer(flatten, out_dim = 1024)
+        h_dropout = tf.nn.dropout(h_fc, keep_prob = self.dropout2)
+
+        w_output = weight_var([1024, 2])
+        b_output = bias_var([2])
+        raw_output = tf.matmul(h_dropout, w_output) + b_output
+
+        self.predict = tf.nn.softmax(raw_output)
+        self.train_loss = tf.nn.softmax_cross_entropy_with_logits(logits = raw_output, labels = self.y)
+        self.train_step = tf.train.AdamOptimizer(5e-4).minimize(self.train_loss)
+        self.accuracy = tf.reduce_mean(
+            tf.cast(
+                tf.equal(tf.argmax(raw_output, 1), tf.argmax(self.y, 1)), \
+                tf.float32 \
+            )
+        )
+
+        self.auc = tf.metrics.auc(labels = self.y, predictions = tf.nn.softmax(raw_output))
+
+    def train(self, batch_size, steps):
+
+        # config = tf.ConfigProto()
+        # config.gpu_options.per_process_gpu_memory_fraction = 1
+        #
+        # self.session = tf.Session(config = config)
+        self.session = tf.Session()
+        init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+        self.session.run(init)
+
+        batcher = Batcher(batch_size)
+        x_test, y_test = get_test()
+
+        for i in range(1, steps + 1):
+            x_batch, y_batch = batcher.next_batch()
+            self.session.run(self.train_step, feed_dict = {self.x: x_batch, self.y: y_batch, self.dropout2: 0.8})
+
+            if i % 100 == 0:
+                train_accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_batch, self.y: y_batch, self.dropout2: 0.8})
+                test_accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_test, self.y: y_test, self.dropout2: 1})
+                test_auc, _ = self.session.run(self.auc, feed_dict = {self.x: x_test, self.y: y_test, self.dropout2: 1})
+                print("train acc: " + str(train_accuracy) + ", test acc: " + str(test_accuracy) +  ", test auc: " + str(test_auc) + ", step: " + str(i))
+
+        self.session.close()
+
+
+class MusiteDeepClassifier():
 
     def __init__(self):
         self.x = tf.placeholder(tf.float32, shape = [None, 33, 21])
@@ -118,31 +227,33 @@ class Classifier():
             )
         )
 
-        self.auc = tf.metrics.auc(labels = self.y, predictions = tf.nn.softmax(raw_output), num_thresholds = 494)
+        self.auc = tf.metrics.auc(labels = self.y, predictions = tf.nn.softmax(raw_output))
 
     def train(self, batch_size, steps):
 
-        config = tf.ConfigProto()
-        config.gpu_options.per_process_gpu_memory_fraction = 0.5
+        # config = tf.ConfigProto()
+        # config.gpu_options.per_process_gpu_memory_fraction = 0.8
 
-        self.session = tf.Session(config = config)
+        # self.session = tf.Session(config = config)
+        self.session = tf.Session()
         init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
         self.session.run(init)
 
         batcher = Batcher(batch_size)
-        x_eval, y_eval = get_validation()
+        # x_eval, y_eval = get_validation()
         x_test, y_test = get_test()
 
-        for i in range(steps):
+        for i in range(1, steps + 1):
             x_batch, y_batch = batcher.next_batch()
             self.session.run(self.train_step, feed_dict = {self.x: x_batch, self.y: y_batch})
 
             if i % 100 == 0:
                 train_accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_batch, self.y: y_batch})
-                valid_accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_eval, self.y: y_eval})
+                # valid_accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_eval, self.y: y_eval})
                 test_accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_test, self.y: y_test})
-                valid_auc = self.session.run(self.auc, feed_dict = {self.x: x_eval, self.y: y_eval})
+                # valid_auc = self.session.run(self.auc, feed_dict = {self.x: x_eval, self.y: y_eval})
                 test_auc = self.session.run(self.auc, feed_dict = {self.x: x_test, self.y: y_test})
-                print("train acc: " + str(train_accuracy) + ", valid acc: " + str(valid_accuracy) + ", test acc: " + str(test_accuracy) + ", valid auc: " + str(valid_auc) + ", test auc: " + str(test_auc) + ", step: " + str(i))
+                # print("train acc: " + str(train_accuracy) + ", valid acc: " + str(valid_accuracy) + ", test acc: " + str(test_accuracy) + ", valid auc: " + str(valid_auc) + ", test auc: " + str(test_auc) + ", step: " + str(i))
+                print("train acc: " + str(train_accuracy) + ", test acc: " + str(test_accuracy) +  ", test auc: " + str(test_auc) + ", step: " + str(i))
 
         self.session.close()
