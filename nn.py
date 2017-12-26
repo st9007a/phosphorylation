@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import tensorflow as tf
-from utils import Batcher, get_validation, get_test
+from utils import Batcher, get_test
 
 def weight_var(shape):
     return tf.Variable(tf.truncated_normal(shape, stddev = 0.1))
@@ -47,169 +47,75 @@ def batch_normalization(entry_tensor):
                                    variance_epsilon = 1e-3)
     return bn
 
-class CNN():
-
-    def __init__(self):
-        self.x = tf.placeholder(tf.float32, shape = [None, 10, 33])
-        self.y = tf.placeholder(tf.float32, shape = [None, 2])
-
-        self.build()
-
-    def conv_layer(self, input_tensor, filter_size, channels, patch = 1):
-        current_channels = int(input_tensor.get_shape()[3])
-
-        w = weight_var(filter_size + [current_channels, channels])
-        b = bias_var([channels])
-        h = tf.nn.conv2d(input_tensor, w, strides = [1, patch, patch, 1], padding = 'SAME') + b
-        h = batch_normalization(h)
-        h = tf.nn.relu(h)
-
-        return h
-
-    def dense_layer(self, input_tensor, out_dim, act = tf.nn.relu):
-        current_dim = int(input_tensor.get_shape()[1])
-
-        w = weight_var([current_dim, out_dim])
-        b = bias_var([out_dim])
-        h = tf.matmul(input_tensor, w) + b
-        h = batch_normalization(h)
-        h = act(h)
-
-        return h, w
-
-    def build(self):
-        self.dropout1 = tf.placeholder(tf.float32)
-        self.dropout2 = tf.placeholder(tf.float32)
-        x_reshape = tf.reshape(self.x, [-1, 10, 33, 1])
-
-        h_conv1 = self.conv_layer(x_reshape, filter_size = [3, 3], channels = 64)
-        h_conv2 = self.conv_layer(h_conv1, filter_size = [3, 3], channels = 64)
-
-        h_reduce1 = self.conv_layer(h_conv2, filter_size = [2, 2], channels = 64, patch = 2)
-
-        # size: 5 * 17
-        h_conv3 = self.conv_layer(h_reduce1, filter_size = [3, 3], channels = 128)
-        h_conv4 = self.conv_layer(h_conv3, filter_size = [3, 3], channels = 128)
-
-        h_reduce2 = self.conv_layer(h_conv4, filter_size = [2, 2], channels = 128, patch = 2)
-
-        # size: 3 * 9
-        h_conv5 = self.conv_layer(h_reduce2, filter_size = [3, 3], channels = 256)
-        h_conv6 = self.conv_layer(h_conv5, filter_size = [3, 3], channels = 256)
-        h_conv7 = self.conv_layer(h_conv6, filter_size = [3, 3], channels = 256)
-
-        h_reduce3 = self.conv_layer(h_conv7, filter_size = [2, 2], channels = 128, patch = 2)
-
-        # size: 2 * 5
-        h_conv8 = self.conv_layer(h_reduce3, filter_size = [3, 3], channels = 512)
-        h_conv9 = self.conv_layer(h_conv8, filter_size = [3, 3], channels = 512)
-        h_conv10 = self.conv_layer(h_conv9, filter_size = [3, 3], channels = 512)
-
-        h_conv11 = self.conv_layer(h_conv10, filter_size = [3, 3], channels = 128)
-
-        h_pool4 = tf.nn.avg_pool(h_conv11, ksize = [1, 2, 5, 1], strides = [1, 2, 5, 1], padding = 'SAME')
-
-        flatten = tf.reshape(h_pool4, [-1, 128])
-
-        h_fc, w_fc = self.dense_layer(flatten, out_dim = 1024)
-        h_dropout = tf.nn.dropout(h_fc, keep_prob = self.dropout2)
-
-        w_output = weight_var([1024, 2])
-        b_output = bias_var([2])
-        raw_output = tf.matmul(h_dropout, w_output) + b_output
-
-        self.predict = tf.nn.softmax(raw_output)
-        self.train_loss = tf.nn.softmax_cross_entropy_with_logits(logits = raw_output, labels = self.y)
-        self.train_step = tf.train.AdamOptimizer(5e-4).minimize(self.train_loss)
-        self.accuracy = tf.reduce_mean(
-            tf.cast(
-                tf.equal(tf.argmax(raw_output, 1), tf.argmax(self.y, 1)), \
-                tf.float32 \
-            )
-        )
-
-        self.auc = tf.metrics.auc(labels = self.y, predictions = tf.nn.softmax(raw_output))
-
-    def train(self, batch_size, steps):
-
-        # config = tf.ConfigProto()
-        # config.gpu_options.per_process_gpu_memory_fraction = 1
-        #
-        # self.session = tf.Session(config = config)
-        self.session = tf.Session()
-        init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
-        self.session.run(init)
-
-        batcher = Batcher(batch_size)
-        x_test, y_test = get_test()
-
-        for i in range(1, steps + 1):
-            x_batch, y_batch = batcher.next_batch()
-            self.session.run(self.train_step, feed_dict = {self.x: x_batch, self.y: y_batch, self.dropout2: 0.8})
-
-            if i % 100 == 0:
-                train_accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_batch, self.y: y_batch, self.dropout2: 0.8})
-                test_accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_test, self.y: y_test, self.dropout2: 1})
-                test_auc, _ = self.session.run(self.auc, feed_dict = {self.x: x_test, self.y: y_test, self.dropout2: 1})
-                print("train acc: " + str(train_accuracy) + ", test acc: " + str(test_accuracy) +  ", test auc: " + str(test_auc) + ", step: " + str(i))
-
-        self.session.close()
-
-
 class MusiteDeepClassifier():
 
     def __init__(self):
-        self.x = tf.placeholder(tf.float32, shape = [None, 33, 21])
+        self.dist = 'log/PELMY-PPA3Y/'
+        self.dir = self.dist + 'pssm-1-4/'
+        self.x = tf.placeholder(tf.float32, shape = [None, 4, 33, 25])
         self.y = tf.placeholder(tf.float32, shape = [None, 2])
 
         self.build()
 
+    def conv_layer(self, input_tensor, num_fms, filter_size, strides, dropout = None):
+        curr = int(input_tensor.get_shape()[3])
+        w = weight_var(filter_size + [curr, num_fms])
+        b = bias_var([num_fms])
+        h = tf.nn.conv2d(input_tensor, w, strides = strides, padding = 'SAME') + b
+        h = batch_normalization(h)
+
+        dropout_layer = None
+        if dropout is not None:
+            dropout_layer = tf.placeholder(tf.float32)
+            h = tf.nn.dropout(h, keep_prob = dropout_layer)
+        h = tf.nn.relu(h)
+
+        return h, dropout_layer
+
+    def res_block(self, input_tensor):
+        h_conv1, _ = self.conv_layer(input_tensor, num_fms = 75, filter_size = [1, 1], strides = [1, 1, 1, 1])
+        h_conv2, _ = self.conv_layer(h_conv1, num_fms = 150, filter_size = [9, 1], strides = [1, 1, 1, 1])
+        h_conv3, _ = self.conv_layer(h_conv2, num_fms = 150, filter_size = [1, 1], strides = [1, 1, 1, 1])
+
+        return input_tensor + h_conv3
+
     def build(self):
-        x_reshape = tf.reshape(self.x, [-1, 33, 21, 1])
+        x_transpose = tf.transpose(self.x, perm = [0, 2, 3, 1])
 
-        w_conv1 = weight_var([1, 21, 1, 200])
-        b_conv1 = bias_var([200])
-        h_conv1 = tf.nn.conv2d(x_reshape, w_conv1, strides = [1, 1, 1, 1], padding = 'VALID')
-        h_conv1 = batch_normalization(h_conv1)
-        h_conv1 = tf.nn.dropout(h_conv1, keep_prob = 0.75)
-        h_conv1 = tf.nn.relu(h_conv1) + b_conv1
+        h_conv1, _ = self.conv_layer(x_transpose, num_fms = 150, filter_size = [1, 25], strides = [1, 1, 25, 1])
+        h_res1 = self.res_block(h_conv1)
+        self.dropout1 = tf.placeholder(tf.float32)
+        h_dropout1 = tf.nn.dropout(h_res1, keep_prob = self.dropout1)
 
-        w_conv2 = weight_var([9, 1, 200, 150])
-        b_conv2 = bias_var([150])
-        h_conv2 = tf.nn.conv2d(h_conv1, w_conv2, strides = [1, 1, 1, 1], padding = 'VALID')
-        h_conv2 = batch_normalization(h_conv2)
-        h_conv2 = tf.nn.dropout(h_conv2, keep_prob = 0.75)
-        h_conv2 = tf.nn.relu(h_conv2) + b_conv2
+        h_res2 = self.res_block(h_dropout1)
+        self.dropout2 = tf.placeholder(tf.float32)
+        h_dropout2 = tf.nn.dropout(h_res2, keep_prob = self.dropout2)
 
-        w_conv3 = weight_var([10, 1, 150, 200])
-        b_conv3 = bias_var([200])
-        h_conv3 = tf.nn.conv2d(h_conv2, w_conv3, strides = [1, 1, 1, 1], padding = 'VALID')
-        h_conv3 = batch_normalization(h_conv3)
-        h_conv3 = tf.nn.relu(h_conv3) + b_conv3
-
-        seq_domain_entry = tf.reshape(h_conv3, [-1, 16, 200])
+        seq_domain_entry = tf.reshape(h_dropout2, [-1, 33, 150])
         fm_domain_entry = tf.transpose(seq_domain_entry, perm = [0, 2, 1])
 
         seq_att, seq_att_w0, seq_att_w1 = attention(seq_domain_entry, dim = 8)
         fm_att, fm_att_w0, fm_att_w1 = attention(fm_domain_entry, dim = 10)
         merged = tf.concat([seq_att, fm_att], axis = 1)
 
-        w_merge1 = weight_var([200 + 16, 149])
+        w_merge1 = weight_var([150 + 33, 149])
         b_merge1 = bias_var([149])
-        h_merge1 = tf.matmul(merged, w_merge1) + b_merge1
+        h_merge1 = merged @ w_merge1 + b_merge1
         h_merge1 = batch_normalization(h_merge1)
         h_merge1 = tf.nn.relu(h_merge1)
-        h_merge1 = tf.nn.dropout(h_merge1, keep_prob = 0.298224)
+
+        self.dropout4 = tf.placeholder(tf.float32)
+        h_merge1 = tf.nn.dropout(h_merge1, keep_prob = self.dropout4)
 
         w_merge2 = weight_var([149, 8])
         b_merge2 = bias_var([8])
-        h_merge2 = tf.matmul(h_merge1, w_merge2) + b_merge2
+        h_merge2 = h_merge1 @ w_merge2 + b_merge2
         h_merge2 = batch_normalization(h_merge2)
         h_merge2 = tf.nn.relu(h_merge2)
 
         w_output = weight_var([8, 2])
         b_output = bias_var([2])
-        raw_output = tf.nn.relu(tf.matmul(h_merge2, w_output) + b_output)
+        raw_output = h_merge2 @ w_output + b_output
 
 
         self.predict = tf.nn.softmax(raw_output)
@@ -229,31 +135,59 @@ class MusiteDeepClassifier():
 
         self.auc = tf.metrics.auc(labels = self.y, predictions = tf.nn.softmax(raw_output))
 
+        tf.summary.scalar('accuracy', self.accuracy)
+        tf.summary.scalar('AUC', self.auc[0])
+
+        self.tb = tf.summary.merge_all()
+
     def train(self, batch_size, steps):
+
 
         # config = tf.ConfigProto()
         # config.gpu_options.per_process_gpu_memory_fraction = 0.8
 
         # self.session = tf.Session(config = config)
         self.session = tf.Session()
+        train_writer = tf.summary.FileWriter(self.dir + '/train', self.session.graph)
+        test_writer = tf.summary.FileWriter(self.dir + '/test')
         init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
         self.session.run(init)
 
+
         batcher = Batcher(batch_size)
-        # x_eval, y_eval = get_validation()
         x_test, y_test = get_test()
 
         for i in range(1, steps + 1):
             x_batch, y_batch = batcher.next_batch()
-            self.session.run(self.train_step, feed_dict = {self.x: x_batch, self.y: y_batch})
+            self.session.run(self.train_step, feed_dict = {
+                self.x: x_batch, \
+                self.y: y_batch, \
+                self.dropout1: 1 - 0.75, \
+                self.dropout2: 1 - 0.75, \
+                self.dropout4: 1 - 0.298224})
 
             if i % 100 == 0:
-                train_accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_batch, self.y: y_batch})
-                # valid_accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_eval, self.y: y_eval})
-                test_accuracy = self.session.run(self.accuracy, feed_dict = {self.x: x_test, self.y: y_test})
-                # valid_auc = self.session.run(self.auc, feed_dict = {self.x: x_eval, self.y: y_eval})
-                test_auc = self.session.run(self.auc, feed_dict = {self.x: x_test, self.y: y_test})
-                # print("train acc: " + str(train_accuracy) + ", valid acc: " + str(valid_accuracy) + ", test acc: " + str(test_accuracy) + ", valid auc: " + str(valid_auc) + ", test auc: " + str(test_auc) + ", step: " + str(i))
+                tb_train, train_accuracy = self.session.run([self.tb, self.accuracy], feed_dict = {
+                    self.x: x_batch, \
+                    self.y: y_batch, \
+                    self.dropout1: 1 - 0.75, \
+                    self.dropout2: 1 - 0.75, \
+                    self.dropout4: 1 - 0.298224})
+                tb_test, test_accuracy = self.session.run([self.tb, self.accuracy], feed_dict = {
+                    self.x: x_test, \
+                    self.y: y_test, \
+                    self.dropout1: 1, \
+                    self.dropout2: 1, \
+                    self.dropout4: 1})
+                test_auc = self.session.run(self.auc, feed_dict = {
+                    self.x: x_test, \
+                    self.y: y_test, \
+                    self.dropout1: 1, \
+                    self.dropout2: 1, \
+                    self.dropout4: 1})
                 print("train acc: " + str(train_accuracy) + ", test acc: " + str(test_accuracy) +  ", test auc: " + str(test_auc) + ", step: " + str(i))
+
+                # train_writer.add_summary(tb_train, i)
+                # test_writer.add_summary(tb_test, i)
 
         self.session.close()
