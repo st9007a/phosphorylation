@@ -57,7 +57,7 @@ class MusiteDeepClassifier():
 
         self.build()
 
-    def conv_layer(self, input_tensor, num_fms, filter_size, strides, dropout = None):
+    def conv_layer(self, input_tensor, num_fms, filter_size, strides, dropout = None, act = tf.nn.relu):
         curr = int(input_tensor.get_shape()[3])
         w = weight_var(filter_size + [curr, num_fms])
         b = bias_var([num_fms])
@@ -65,40 +65,30 @@ class MusiteDeepClassifier():
         h = batch_normalization(h)
 
         dropout_layer = None
-        if dropout is not None:
+        if dropout is True:
             dropout_layer = tf.placeholder(tf.float32)
             h = tf.nn.dropout(h, keep_prob = dropout_layer)
-        h = tf.nn.relu(h)
+        h = act(h)
 
         return h, dropout_layer
-
-    def res_block(self, input_tensor):
-        h_conv1, _ = self.conv_layer(input_tensor, num_fms = 75, filter_size = [1, 1], strides = [1, 1, 1, 1])
-        h_conv2, _ = self.conv_layer(h_conv1, num_fms = 150, filter_size = [9, 1], strides = [1, 1, 1, 1])
-        h_conv3, _ = self.conv_layer(h_conv2, num_fms = 150, filter_size = [1, 1], strides = [1, 1, 1, 1])
-
-        return input_tensor + h_conv3
 
     def build(self):
         x_transpose = tf.transpose(self.x, perm = [0, 2, 3, 1])
 
-        h_conv1, _ = self.conv_layer(x_transpose, num_fms = 150, filter_size = [1, 25], strides = [1, 1, 25, 1])
-        h_res1 = self.res_block(h_conv1)
-        self.dropout1 = tf.placeholder(tf.float32)
-        h_dropout1 = tf.nn.dropout(h_res1, keep_prob = self.dropout1)
+        h_conv1, self.dropout1 = self.conv_layer(x_transpose, num_fms = 200, filter_size = [1, 25], strides = [1, 1, 25, 1], dropout = True)
+        h_conv2, self.dropout2 = self.conv_layer(h_conv1, num_fms = 150, filter_size = [9, 1], strides = [1, 1, 1, 1], dropout = True)
+        h_conv3, _ = self.conv_layer(h_conv2, num_fms = 200, filter_size = [10, 1], strides = [1, 1, 1, 1])
 
-        h_res2 = self.res_block(h_dropout1)
-        self.dropout2 = tf.placeholder(tf.float32)
-        h_dropout2 = tf.nn.dropout(h_res2, keep_prob = self.dropout2)
+        h_conv3 = h_conv3 + h_conv1
 
-        seq_domain_entry = tf.reshape(h_dropout2, [-1, 33, 150])
+        seq_domain_entry = tf.reshape(h_conv3, [-1, 33, 200])
         fm_domain_entry = tf.transpose(seq_domain_entry, perm = [0, 2, 1])
 
         seq_att, seq_att_w0, seq_att_w1 = attention(seq_domain_entry, dim = 8)
         fm_att, fm_att_w0, fm_att_w1 = attention(fm_domain_entry, dim = 10)
         merged = tf.concat([seq_att, fm_att], axis = 1)
 
-        w_merge1 = weight_var([150 + 33, 149])
+        w_merge1 = weight_var([200 + 33, 149])
         b_merge1 = bias_var([149])
         h_merge1 = merged @ w_merge1 + b_merge1
         h_merge1 = batch_normalization(h_merge1)
@@ -124,6 +114,7 @@ class MusiteDeepClassifier():
             + 2 * tf.nn.l2_loss(seq_att_w1) \
             + 0.151948 * tf.nn.l2_loss(fm_att_w0) \
             + 0.151948 * tf.nn.l2_loss(fm_att_w1)
+        self.mean_loss = tf.reduce_mean(self.loss)
 
         self.train_step = tf.train.AdamOptimizer(5e-4).minimize(self.loss)
         self.accuracy = tf.reduce_mean(
@@ -139,6 +130,7 @@ class MusiteDeepClassifier():
         tf.summary.scalar('AUC', self.auc[0])
 
         self.tb = tf.summary.merge_all()
+
 
     def train(self, batch_size, steps):
 
@@ -157,35 +149,31 @@ class MusiteDeepClassifier():
         batcher = Batcher(batch_size)
         x_test, y_test = get_test()
 
+        def get_feed(opt = 'train'):
+            if opt == 'train':
+                x, y = batcher.next_batch()
+                return {self.x: x, \
+                        self.y: y, \
+                        self.dropout1: 0.25, \
+                        self.dropout2: 0.25, \
+                        self.dropout3: 1 - 0.298224}
+            elif opt == 'test':
+                return {self.x: x_test, \
+                        self.y: y_test, \
+                        self.dropout1: 1, \
+                        self.dropout2: 1, \
+                        self.dropout3: 1}
+
         for i in range(1, steps + 1):
             x_batch, y_batch = batcher.next_batch()
-            self.session.run(self.train_step, feed_dict = {
-                self.x: x_batch, \
-                self.y: y_batch, \
-                self.dropout1: 1 - 0.75, \
-                self.dropout2: 1 - 0.75, \
-                self.dropout4: 1 - 0.298224})
+            self.session.run(self.train_step, feed_dict = get_feed('train'))
 
             if i % 100 == 0:
-                tb_train, train_accuracy = self.session.run([self.tb, self.accuracy], feed_dict = {
-                    self.x: x_batch, \
-                    self.y: y_batch, \
-                    self.dropout1: 1 - 0.75, \
-                    self.dropout2: 1 - 0.75, \
-                    self.dropout4: 1 - 0.298224})
-                tb_test, test_accuracy = self.session.run([self.tb, self.accuracy], feed_dict = {
-                    self.x: x_test, \
-                    self.y: y_test, \
-                    self.dropout1: 1, \
-                    self.dropout2: 1, \
-                    self.dropout4: 1})
-                test_auc = self.session.run(self.auc, feed_dict = {
-                    self.x: x_test, \
-                    self.y: y_test, \
-                    self.dropout1: 1, \
-                    self.dropout2: 1, \
-                    self.dropout4: 1})
-                print("train acc: " + str(train_accuracy) + ", test acc: " + str(test_accuracy) +  ", test auc: " + str(test_auc) + ", step: " + str(i))
+                tb_train, train_accuracy = self.session.run([self.tb, self.accuracy], feed_dict = get_feed('train'))
+                tb_test, test_accuracy = self.session.run([self.tb, self.accuracy], feed_dict = get_feed('test'))
+                _, test_auc = self.session.run(self.auc, feed_dict = get_feed('test'))
+                test_loss = self.session.run(self.mean_loss, feed_dict = get_feed('test'))
+                print("train acc: " + str(train_accuracy) + ", test acc: " + str(test_accuracy) +  ", test auc: " + str(test_auc) + ", test loss: " + str(test_loss) + ", step: " + str(i))
 
                 # train_writer.add_summary(tb_train, i)
                 # test_writer.add_summary(tb_test, i)
