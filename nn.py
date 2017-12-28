@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import tensorflow as tf
+import numpy as np
 from utils import Batcher, get_test
 
 def weight_var(shape):
@@ -50,18 +51,19 @@ def batch_normalization(entry_tensor):
 class MusiteDeepClassifier():
 
     def __init__(self):
-        self.dist = 'log/PELMY-PPA3Y/'
-        self.dir = self.dist + 'pssm-1-4/'
-        self.x = tf.placeholder(tf.float32, shape = [None, 4, 33, 25])
+        self.dist = 'log/PELMS-PPA3S/'
+        self.dir = self.dist + 'origin2-2/'
+        # self.x = tf.placeholder(tf.float32, shape = [None, 8, 33, 25])
+        self.x = tf.placeholder(tf.float32, shape = [None, 33, 21])
         self.y = tf.placeholder(tf.float32, shape = [None, 2])
 
         self.build()
 
-    def conv_layer(self, input_tensor, num_fms, filter_size, strides, dropout = None, act = tf.nn.relu):
+    def conv_layer(self, input_tensor, num_fms, filter_size, strides, dropout = None, act = tf.nn.relu, padding = 'SAME'):
         curr = int(input_tensor.get_shape()[3])
         w = weight_var(filter_size + [curr, num_fms])
         b = bias_var([num_fms])
-        h = tf.nn.conv2d(input_tensor, w, strides = strides, padding = 'SAME') + b
+        h = tf.nn.conv2d(input_tensor, w, strides = strides, padding = padding) + b
         h = batch_normalization(h)
 
         dropout_layer = None
@@ -73,13 +75,13 @@ class MusiteDeepClassifier():
         return h, dropout_layer
 
     def build(self):
-        x_transpose = tf.transpose(self.x, perm = [0, 2, 3, 1])
+        # x = tf.transpose(self.x, perm = [0, 2, 3, 1])
+        x = tf.reshape(self.x, [-1, 33, 21, 1])
 
-        h_conv1, self.dropout1 = self.conv_layer(x_transpose, num_fms = 200, filter_size = [1, 25], strides = [1, 1, 25, 1], dropout = True)
+        h_conv1, self.dropout1 = self.conv_layer(x, num_fms = 200, filter_size = [1, 21], strides = [1, 1, 21, 1], dropout = True)
         h_conv2, self.dropout2 = self.conv_layer(h_conv1, num_fms = 150, filter_size = [9, 1], strides = [1, 1, 1, 1], dropout = True)
         h_conv3, _ = self.conv_layer(h_conv2, num_fms = 200, filter_size = [10, 1], strides = [1, 1, 1, 1])
 
-        h_conv3 = h_conv3 + h_conv1
 
         seq_domain_entry = tf.reshape(h_conv3, [-1, 33, 200])
         fm_domain_entry = tf.transpose(seq_domain_entry, perm = [0, 2, 1])
@@ -94,8 +96,8 @@ class MusiteDeepClassifier():
         h_merge1 = batch_normalization(h_merge1)
         h_merge1 = tf.nn.relu(h_merge1)
 
-        self.dropout4 = tf.placeholder(tf.float32)
-        h_merge1 = tf.nn.dropout(h_merge1, keep_prob = self.dropout4)
+        self.dropout3 = tf.placeholder(tf.float32)
+        h_merge1 = tf.nn.dropout(h_merge1, keep_prob = self.dropout3)
 
         w_merge2 = weight_var([149, 8])
         b_merge2 = bias_var([8])
@@ -116,7 +118,6 @@ class MusiteDeepClassifier():
             + 0.151948 * tf.nn.l2_loss(fm_att_w1)
         self.mean_loss = tf.reduce_mean(self.loss)
 
-        self.train_step = tf.train.AdamOptimizer(5e-4).minimize(self.loss)
         self.accuracy = tf.reduce_mean(
             tf.cast(
                 tf.equal(tf.argmax(raw_output, 1), tf.argmax(self.y, 1)), \
@@ -125,6 +126,7 @@ class MusiteDeepClassifier():
         )
 
         self.auc = tf.metrics.auc(labels = self.y, predictions = tf.nn.softmax(raw_output))
+        self.train_step = tf.train.AdamOptimizer(5e-4).minimize(self.loss)
 
         tf.summary.scalar('accuracy', self.accuracy)
         tf.summary.scalar('AUC', self.auc[0])
@@ -177,5 +179,8 @@ class MusiteDeepClassifier():
 
                 # train_writer.add_summary(tb_train, i)
                 # test_writer.add_summary(tb_test, i)
+
+        pred = self.session.run(self.predict, feed_dict = get_feed('test'))
+        np.save('testY', np.array(pred))
 
         self.session.close()

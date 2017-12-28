@@ -1,8 +1,6 @@
 #!/usr/bin/python3
 import numpy as np
-from nn import Classifier
+from nn import MusiteDeepClassifier
 
-clf = Classifier()
-clf.train(200, 5000)
-
-
+clf = MusiteDeepClassifier()
+clf.train(200, 10000)
