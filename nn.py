@@ -10,6 +10,7 @@ def bias_var(shape):
     return tf.Variable(tf.constant(0.1, shape = shape))
 
 def attention(tensor, dim):
+
     input_dim = int(tensor.get_shape()[2])
     input_length = int(tensor.get_shape()[1])
 
@@ -17,17 +18,16 @@ def attention(tensor, dim):
 
     w0 = weight_var([input_dim, dim])
     b0 = bias_var([dim])
-    energy = [tf.matmul(t, w0) + b0 for t in tensor_unpack]
+    energy = [t @ w0 + b0 for t in tensor_unpack]
 
     w1 = weight_var([dim, 1])
     b1 = bias_var([1])
-    energy = [tf.matmul(t, w1) + b1 for t in energy]
+    energy = [t @ w1 + b1 for t in energy]
 
     energy = tf.stack(energy, axis = 1)
-    energy = tf.reshape(energy, [-1, input_length])
-    energy = tf.nn.softmax(energy)
+    energy = tf.nn.softmax(energy, 1)
 
-    weighted_sum = tf.reduce_sum(tensor * tf.expand_dims(energy, -1), 1)
+    weighted_sum = tf.reduce_sum(tensor * energy, 1)
     return weighted_sum, w0, w1
 
 
@@ -51,9 +51,8 @@ def batch_normalization(entry_tensor):
 class MusiteDeepClassifier():
 
     def __init__(self):
-        self.dist = 'log/PELMS-PPA3S/'
-        self.dir = self.dist + 'origin2-2/'
-        # self.x = tf.placeholder(tf.float32, shape = [None, 8, 33, 25])
+        self.dir = 'log/T/baseline-1/'
+        # self.x = tf.placeholder(tf.float32, shape = [None, 4, 33, 26])
         self.x = tf.placeholder(tf.float32, shape = [None, 33, 21])
         self.y = tf.placeholder(tf.float32, shape = [None, 2])
 
@@ -81,7 +80,6 @@ class MusiteDeepClassifier():
         h_conv1, self.dropout1 = self.conv_layer(x, num_fms = 200, filter_size = [1, 21], strides = [1, 1, 21, 1], dropout = True)
         h_conv2, self.dropout2 = self.conv_layer(h_conv1, num_fms = 150, filter_size = [9, 1], strides = [1, 1, 1, 1], dropout = True)
         h_conv3, _ = self.conv_layer(h_conv2, num_fms = 200, filter_size = [10, 1], strides = [1, 1, 1, 1])
-
 
         seq_domain_entry = tf.reshape(h_conv3, [-1, 33, 200])
         fm_domain_entry = tf.transpose(seq_domain_entry, perm = [0, 2, 1])
@@ -111,7 +109,7 @@ class MusiteDeepClassifier():
 
 
         self.predict = tf.nn.softmax(raw_output)
-        self.loss = tf.nn.softmax_cross_entropy_with_logits(logits = raw_output, labels = self.y) \
+        self.loss = tf.nn.sigmoid_cross_entropy_with_logits(logits = raw_output, labels = self.y) \
             + 2 * tf.nn.l2_loss(seq_att_w0) \
             + 2 * tf.nn.l2_loss(seq_att_w1) \
             + 0.151948 * tf.nn.l2_loss(fm_att_w0) \
@@ -125,7 +123,7 @@ class MusiteDeepClassifier():
             )
         )
 
-        self.auc = tf.metrics.auc(labels = self.y, predictions = tf.nn.softmax(raw_output))
+        self.auc = tf.metrics.auc(labels = self.y[:,0], predictions = self.predict[:,0])
         self.train_step = tf.train.AdamOptimizer(5e-4).minimize(self.loss)
 
         tf.summary.scalar('accuracy', self.accuracy)
@@ -136,11 +134,6 @@ class MusiteDeepClassifier():
 
     def train(self, batch_size, steps):
 
-
-        # config = tf.ConfigProto()
-        # config.gpu_options.per_process_gpu_memory_fraction = 0.8
-
-        # self.session = tf.Session(config = config)
         self.session = tf.Session()
         train_writer = tf.summary.FileWriter(self.dir + '/train', self.session.graph)
         test_writer = tf.summary.FileWriter(self.dir + '/test')
@@ -173,14 +166,53 @@ class MusiteDeepClassifier():
             if i % 100 == 0:
                 tb_train, train_accuracy = self.session.run([self.tb, self.accuracy], feed_dict = get_feed('train'))
                 tb_test, test_accuracy = self.session.run([self.tb, self.accuracy], feed_dict = get_feed('test'))
+
                 _, test_auc = self.session.run(self.auc, feed_dict = get_feed('test'))
+
                 test_loss = self.session.run(self.mean_loss, feed_dict = get_feed('test'))
                 print("train acc: " + str(train_accuracy) + ", test acc: " + str(test_accuracy) +  ", test auc: " + str(test_auc) + ", test loss: " + str(test_loss) + ", step: " + str(i))
 
-                # train_writer.add_summary(tb_train, i)
-                # test_writer.add_summary(tb_test, i)
+                train_writer.add_summary(tb_train, i)
+                test_writer.add_summary(tb_test, i)
 
-        pred = self.session.run(self.predict, feed_dict = get_feed('test'))
-        np.save('testY', np.array(pred))
+                '''
+                ###Calcute S AUC ###
+                test_pred_1 = self.session.run(self.predict, feed_dict = {
+                    self.x: x_test[:50000], \
+                    self.y: y_test[:50000], \
+                    self.dropout1: 1, \
+                    self.dropout2: 1, \
+                    self.dropout3: 1
+                })
+                test_pred_2 = self.session.run(self.predict, feed_dict = {
+                    self.x: x_test[50000:], \
+                    self.y: y_test[50000:], \
+                    self.dropout1: 1, \
+                    self.dropout2: 1, \
+                    self.dropout3: 1
+                })
+                pred = np.concatenate((test_pred_1, test_pred_2), axis = 0)
+                pred_op = tf.constant(pred, tf.float32)
+                auc = tf.metrics.auc(labels = self.y[:,0], predictions = pred_op[:,0])
+                acc = tf.reduce_mean(
+                    tf.cast(
+                        tf.equal(tf.argmax(pred_op, 1), tf.argmax(self.y, 1)), \
+                        tf.float32 \
+                    )
+                )
+
+                sess = tf.Session()
+                local_init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+                sess.run(local_init)
+
+                _, test_auc = sess.run(auc, feed_dict = {self.y: y_test})
+                test_acc = sess.run(acc, feed_dict = {self.y: y_test})
+
+                with open('log/S/pssm-4-1.csv', 'a') as f:
+                    f.write(str(i) + ',' + str(test_acc) + ',' + str(test_auc) + '\n')
+                print(str(i) + ',' + str(test_acc) + ',' + str(test_auc))
+
+                sess.close()
+                '''
 
         self.session.close()
