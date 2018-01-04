@@ -22,6 +22,8 @@ for line in raw:
         y.append([1, 0])
 
     data = []
+    if len(line[2]) != 33:
+        print(line[2])
     for c in line[2]:
         vec = [0] * 21
 
