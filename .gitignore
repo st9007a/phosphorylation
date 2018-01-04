@@ -1,2 +1,7 @@
 __pycache__/
-data
+*.swp
+log
+tmp
+*.ignore
+*.csv
+*.npy

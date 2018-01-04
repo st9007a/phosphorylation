@@ -109,7 +109,7 @@ class MusiteDeepClassifier():
 
 
         self.predict = tf.nn.softmax(raw_output)
-        self.loss = tf.nn.sigmoid_cross_entropy_with_logits(logits = raw_output, labels = self.y) \
+        self.loss = tf.nn.softmax_cross_entropy_with_logits(logits = raw_output, labels = self.y) \
             + 2 * tf.nn.l2_loss(seq_att_w0) \
             + 2 * tf.nn.l2_loss(seq_att_w1) \
             + 0.151948 * tf.nn.l2_loss(fm_att_w0) \

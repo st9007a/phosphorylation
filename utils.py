@@ -1,16 +1,12 @@
 #!/usr/bin/python3
 import numpy as np
 
-# src = 'data/PELMT-PPA3T/pssm-8/'
-src = 'raw_data/ML/'
+src = 'data/baseline/'
 
 class Batcher():
 
-    # file_x = 'data/train_data_X_conv.npy'
-    # file_y = 'data/train_data_Y_conv.npy'
-
-    file_x = src + 'train_data_X_conv.npy'
-    file_y = src + 'train_data_Y_conv.npy'
+    file_x = src + 'train_x.npy'
+    file_y = src + 'train_y.npy'
 
     def __init__(self, batch_size):
         self.times = 0
@@ -31,16 +27,12 @@ class Batcher():
         self.times += 1
         self.times %= (np.shape(self.y)[0]//self.batch_size)
 
-        # print("y.size = ", np.shape(self.y)[0]//self.batch_size, "times = ", self.times)
-        # print("batch ", self.batch_size*self.times, " to ", self.batch_size*(self.times+1))
         return self.x1[self.batch_size*self.times:self.batch_size*(self.times+1)], self.y1[self.batch_size*self.times:self.batch_size*(self.times+1)]
 
 def get_test():
-    # x = np.load('data/test_data_X_conv.npy')
-    # y = np.load('data/test_data_Y_conv.npy')
 
-    x = np.load(src + 'test_data_X_conv.npy')
-    y = np.load(src + 'test_data_Y_conv.npy')
+    x = np.load(src + 'test_x.npy')
+    y = np.load(src + 'test_y.npy')
 
     return x, y
 
