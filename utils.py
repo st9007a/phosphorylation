@@ -1,7 +1,8 @@
 #!/usr/bin/python3
 import numpy as np
+import tensorflow as tf
 
-src = 'data/baseline/'
+src = 'data/mlb/'
 
 class Batcher():
 
@@ -16,8 +17,8 @@ class Batcher():
         self.batch_size = batch_size
 
         self.combined = np.c_[self.x.reshape(len(self.x), -1), self.y.reshape(len(self.y), -1)]
-        self.x1 = self.combined[:, :self.x.size//len(self.x)].reshape(self.x.shape)
-        self.y1 = self.combined[:, self.x.size//len(self.x):].reshape(self.y.shape)
+        self.x1 = self.combined[:, :self.x.size // len(self.x)].reshape(self.x.shape)
+        self.y1 = self.combined[:, self.x.size // len(self.x):].reshape(self.y.shape)
 
     def next_batch(self):
 
@@ -25,9 +26,9 @@ class Batcher():
             np.random.shuffle(self.combined)
 
         self.times += 1
-        self.times %= (np.shape(self.y)[0]//self.batch_size)
+        self.times %= (np.shape(self.y)[0] // self.batch_size)
 
-        return self.x1[self.batch_size*self.times:self.batch_size*(self.times+1)], self.y1[self.batch_size*self.times:self.batch_size*(self.times+1)]
+        return self.x1[self.batch_size * self.times : self.batch_size * (self.times + 1)], self.y1[self.batch_size * self.times : self.batch_size * (self.times + 1)]
 
 def get_test():
 
@@ -42,3 +43,16 @@ def test():
         a, b = ba.next_batch()
         print(np.shape(a), np.shape(b))
 
+def input_pipeline(files, batch_size, epochs, record_defaults):
+    file_queue = tf.train.string_input_producer(files, num_epochs = epochs, shuffle = True)
+    key, record = tf.TextLineReader().read(file_queue)
+    data = tf.decode_csv(record, record_defaults = record_defaults)
+
+    y_batch, x_batch = tf.train.shuffle_batch( \
+        [data[0], data[1:]],                   \
+        batch_size = batch_size,               \
+        capacity = 1000 + 10 * batch_size,     \
+        min_after_dequeue = 1000               \
+    )
+
+    return y_batch, x_batch
