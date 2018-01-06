@@ -27,9 +27,9 @@ class MusiteDeepModel():
         x = data_pipeline[0]
         y = tf.reshape(data_pipeline[1], [-1, 2])
 
-        x_reshape = tf.reshape(x, [-1, 33, 22, 1])
+        x_reshape = tf.reshape(x, [-1, 33, 21, 1])
 
-        h_conv1, self.dropout1 = conv_layer(x_reshape, num_fms = 200, filter_size = [1, 22], strides = [1, 1, 22, 1], dropout = True)
+        h_conv1, self.dropout1 = conv_layer(x_reshape, num_fms = 200, filter_size = [1, 21], strides = [1, 1, 21, 1], dropout = True)
         h_conv2, self.dropout2 = conv_layer(h_conv1, num_fms = 150, filter_size = [9, 1], strides = [1, 1, 1, 1], dropout = True)
         h_conv3, _ = conv_layer(h_conv2, num_fms = 200, filter_size = [10, 1], strides = [1, 1, 1, 1])
 
@@ -104,7 +104,7 @@ class MusiteDeepModel():
             metrics_op.append(self.tb)
 
         for i in range(1, epochs + 1):
-            print('Epoch ' + str(i))
+            print(str(i) + '/' + str(epochs), end = '\r')
 
             self.sess.run(tf.local_variables_initializer())
             self.sess.run(self.dataset.iterator.initializer, feed_dict = {
@@ -134,12 +134,6 @@ class MusiteDeepModel():
 
                 except tf.errors.OutOfRangeError:
                     break
-
-            # Metrics train
-            # metrics = self.sess.run(metrics_op)
-            # if self.tb != None:
-            #     self.train_writer.add_summary(metrics[3], i)
-
 
             self.sess.run(tf.local_variables_initializer())
             self.sess.run(self.dataset.iterator.initializer, feed_dict = {
