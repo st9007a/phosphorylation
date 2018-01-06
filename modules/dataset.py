@@ -4,6 +4,7 @@ import sys
 
 def _encode_onehot21(x):
     x = tf.one_hot(x, depth = 21)
+    x = tf.reshape(x, [33, 21])
     x = tf.unstack(x, axis = 0)
     x = [tf.where(tf.equal(tf.reduce_sum(t), 0), tf.constant([0.05] * 20 + [0], tf.float32), t) for t in x]
     x = tf.stack(x, axis = 0)
