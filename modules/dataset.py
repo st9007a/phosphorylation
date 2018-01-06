@@ -70,8 +70,7 @@ class Dataset():
 
     def __init__(self, trainfiles, testfiles, batch_size, parallel_call = 1):
 
-        self.trainfiles = trainfiles
-        self.testfiles = testfiles
+        self.filenames = {'train': trainfiles, 'test': testfiles}
 
         self.dataset = self.data_pipeline(batch_size, parallel_call)
         self.iterator = self.dataset.make_initializable_iterator()
