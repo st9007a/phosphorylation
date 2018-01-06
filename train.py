@@ -1,6 +1,17 @@
 #!/usr/bin/python3
-import numpy as np
-from nn import MusiteDeepClassifier
+import tensorflow as tf
+from modules.model import MusiteDeepModel
+from modules.dataset import Dataset
 
-clf = MusiteDeepClassifier()
-clf.train(200, 35000)
+if __name__ == '__main__':
+
+    data = Dataset(
+        trainfiles = ['data/baseline/train.tfrecord'], \
+        testfiles = ['data/baseline/test.tfrecord'], \
+        batch_size = 200, \
+        parallel_call = 4 \
+    )
+
+    model = MusiteDeepModel(dataset = data)
+    model.train(epochs = 800)
+    model.close()
