@@ -2,6 +2,7 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
+import numpy as np
 import tensorflow as tf
 from modules.tf_builtin import *
 
@@ -75,7 +76,7 @@ class MusiteDeepModel():
             )
         )
 
-        self.auc = tf.metrics.auc(labels = y[:,1], predictions = self.predict[:,1])
+        self.auc, self.auc_update = tf.metrics.auc(labels = y[:,1], predictions = self.predict[:,1])
 
         self.train_op = tf.train.AdamOptimizer(5e-4).minimize(loss)
 
@@ -120,6 +121,25 @@ class MusiteDeepModel():
                     })
 
                 except tf.errors.OutOfRangeError:
+                    break
+
+            self.sess.run(tf.local_variables_initializer())
+            self.sess.run(self.dataset.iterator.initializer, feed_dict = {
+                self.dataset.files: self.dataset.testfiles
+            })
+
+            while True:
+
+                try:
+                    self.sess.run(self.auc_update, feed_dict = {
+                        self.dataset.files: self.dataset.testfiles,
+                        self.dropout1: 1, \
+                        self.dropout2: 1, \
+                        self.dropout3: 1
+                    })
+
+                except:
+                    print(self.sess.run(self.auc))
                     break
 
     def close(self):
