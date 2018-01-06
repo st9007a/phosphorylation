@@ -67,22 +67,16 @@ class MusiteDeepModel():
 
         self.predict = tf.nn.softmax(raw_output)
 
-        self.loss = tf.reduce_mean(loss)
-
-        self.accuracy = tf.reduce_mean(
-            tf.cast(
-                tf.equal(tf.argmax(raw_output, 1), tf.argmax(y, 1)), \
-                tf.float32 \
-            )
-        )
-
+        self.loss, self.loss_update = tf.metrics.mean(loss)
+        self.acc, self.acc_update = tf.metrics.accuracy(labels = tf.argmax(y, 1), predictions = tf.argmax(self.predict, 1))
         self.auc, self.auc_update = tf.metrics.auc(labels = y[:,1], predictions = self.predict[:,1])
 
         self.train_op = tf.train.AdamOptimizer(5e-4).minimize(loss)
 
         if self.logdir != None:
-            tf.summary.scalar('accuracy', self.accuracy)
-            tf.summary.scalar('AUC', self.auc[0])
+            tf.summary.scalar('Accuracy', self.acc)
+            tf.summary.scalar('AUC', self.auc)
+            tf.summary.scalar('Loss', self.loss)
 
             self.tb = tf.summary.merge_all()
 
@@ -94,7 +88,7 @@ class MusiteDeepModel():
         self.sess = tf.Session()
 
         if self.tb != None:
-            self.train_writer = tf.summary.FileWriter(self.logdir + '/train', self.session.graph)
+            self.train_writer = tf.summary.FileWriter(self.logdir + '/train', self.sess.graph)
             self.test_writer = tf.summary.FileWriter(self.logdir + '/test')
 
         init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
@@ -102,18 +96,36 @@ class MusiteDeepModel():
         self.sess.run(init_op)
         print('End: initial session')
 
-    def train(self, epochs = 800):
+    def train(self, epochs):
+
+        update_op = [self.acc_update, self.auc_update, self.loss_update]
+        metrics_op = [self.acc, self.auc, self.loss]
+        if self.tb != None:
+            metrics_op.append(self.tb)
 
         for i in range(1, epochs + 1):
+            print('Epoch ' + str(i))
 
+            self.sess.run(tf.local_variables_initializer())
             self.sess.run(self.dataset.iterator.initializer, feed_dict = {
                 self.dataset.files: self.dataset.trainfiles
             })
 
+            self.sess.run([self.train_op] + update_op, feed_dict = {
+                self.dataset.files: self.dataset.trainfiles,
+                self.dropout1: 0.25, \
+                self.dropout2: 0.25, \
+                self.dropout3: 1 - 0.298224
+            })
+
+            metrics = self.sess.run(metrics_op)
+            if self.tb != None:
+                self.train_writer.add_summary(metrics[3], i - 1)
+
             while True:
 
                 try:
-                    _, acc = self.sess.run([self.train_op, self.accuracy], feed_dict = {
+                    self.sess.run(self.train_op, feed_dict = {
                         self.dataset.files: self.dataset.trainfiles,
                         self.dropout1: 0.25, \
                         self.dropout2: 0.25, \
@@ -123,6 +135,12 @@ class MusiteDeepModel():
                 except tf.errors.OutOfRangeError:
                     break
 
+            # Metrics train
+            # metrics = self.sess.run(metrics_op)
+            # if self.tb != None:
+            #     self.train_writer.add_summary(metrics[3], i)
+
+
             self.sess.run(tf.local_variables_initializer())
             self.sess.run(self.dataset.iterator.initializer, feed_dict = {
                 self.dataset.files: self.dataset.testfiles
@@ -131,7 +149,7 @@ class MusiteDeepModel():
             while True:
 
                 try:
-                    self.sess.run(self.auc_update, feed_dict = {
+                    self.sess.run([self.acc_update, self.auc_update, self.loss_update], feed_dict = {
                         self.dataset.files: self.dataset.testfiles,
                         self.dropout1: 1, \
                         self.dropout2: 1, \
@@ -139,8 +157,12 @@ class MusiteDeepModel():
                     })
 
                 except:
-                    print(self.sess.run(self.auc))
                     break
+
+            # Metrics test
+            metrics = self.sess.run(metrics_op)
+            if self.tb != None:
+                self.test_writer.add_summary(metrics[3], i)
 
     def close(self):
         self.sess.close()

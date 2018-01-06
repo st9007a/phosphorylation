@@ -12,6 +12,6 @@ if __name__ == '__main__':
         parallel_call = 4 \
     )
 
-    model = MusiteDeepModel(dataset = data)
-    model.train(epochs = 800)
+    model = MusiteDeepModel(dataset = data, logdir = 'log/test')
+    model.train(epochs = 500)
     model.close()
