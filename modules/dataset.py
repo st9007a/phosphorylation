@@ -1,5 +1,56 @@
 #!/usr/bin/python3
 import tensorflow as tf
+import sys
+
+def _encode_onehot21(x):
+    x = tf.one_hot(x, depth = 21)
+    x = tf.unstack(x, axis = 0)
+    x = [tf.where(tf.equal(tf.reduce_sum(t), 0), tf.constant([0.05] * 20 + [0], tf.float32), t) for t in x]
+    x = tf.stack(x, axis = 0)
+
+    return x
+
+def _encode_onehot22(x):
+    x = tf.one_hot(x, depth = 22)
+    x = tf.cast(x, tf.float32)
+
+    return x
+
+def _encode_onehot21_nox(x):
+    x = tf.one_hot(x, depth = 21)
+    x = tf.cast(x, tf.float32)
+
+    return x
+
+def _encode_onehot21_nopad(x):
+    return x
+
+def _encode_identity(x):
+    return tf.cast(x, tf.float32)
+
+encode_func_map = {
+    'onehot21': _encode_onehot21,
+    'onehot22': _encode_onehot22,
+    'onehot21_nox': _encode_onehot21_nox,
+    'onehot21_nopad': _encode_onehot21_nopad,
+}
+
+encode_func = _encode_identity
+
+if len(sys.argv) < 2:
+    print('Pipeline without encoding')
+else:
+    print('Pipeline with ' + sys.argv[1] + ' encoding')
+    encode_func = encode_func_map[sys.argv[1]]
+
+
+if __name__ == '__main__':
+
+    test = tf.constant([1, 20, 21, 10], tf.uint8)
+    test = _encode_onehot21(test)
+    sess = tf.Session()
+    print(sess.run(test))
+
 
 def _parse_tfrecord(example_proto):
     features = {
@@ -10,13 +61,10 @@ def _parse_tfrecord(example_proto):
     parsed_features = tf.parse_single_example(example_proto, features, name = 'parse_feature')
 
     x = tf.decode_raw(parsed_features['x'], tf.uint8)
-    x = tf.one_hot(x, depth = 22)
-    x = tf.cast(x, tf.float32)
-
     y = tf.decode_raw(parsed_features['y'], tf.uint8)
     y = tf.one_hot(y, depth = 2)
     y = tf.cast(y, tf.float32)
-    return x, y
+    return encode_func(x), y
 
 class Dataset():
 

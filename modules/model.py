@@ -120,7 +120,6 @@ class MusiteDeepModel():
                     })
 
                 except tf.errors.OutOfRangeError:
-                    print(i)
                     break
 
     def close(self):
