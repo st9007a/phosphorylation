@@ -67,16 +67,22 @@ class MusiteDeepModel():
 
         self.predict = tf.nn.softmax(raw_output)
 
-        self.loss, self.loss_update = tf.metrics.mean(loss)
-        self.acc, self.acc_update = tf.metrics.accuracy(labels = y, predictions = self.predict)
+        self.loss = tf.reduce_mean(loss)
+
+        self.accuracy = tf.reduce_mean(
+            tf.cast(
+                tf.equal(tf.argmax(raw_output, 1), tf.argmax(y, 1)), \
+                tf.float32 \
+            )
+        )
+
         self.auc, self.auc_update = tf.metrics.auc(labels = y[:,1], predictions = self.predict[:,1])
 
         self.train_op = tf.train.AdamOptimizer(5e-4).minimize(loss)
 
         if self.logdir != None:
-            tf.summary.scalar('Accuracy', self.acc)
-            tf.summary.scalar('AUC', self.auc)
-            tf.summary.scalar('Loss', self.loss)
+            tf.summary.scalar('accuracy', self.accuracy)
+            tf.summary.scalar('AUC', self.auc[0])
 
             self.tb = tf.summary.merge_all()
 
@@ -88,64 +94,53 @@ class MusiteDeepModel():
         self.sess = tf.Session()
 
         if self.tb != None:
-            self.writer = {
-                'train': tf.summary.FileWriter(self.logdir + '/train', self.session.graph),
-                'test': tf.summary.FileWriter(self.logdir + '/test')
-            }
+            self.train_writer = tf.summary.FileWriter(self.logdir + '/train', self.session.graph)
+            self.test_writer = tf.summary.FileWriter(self.logdir + '/test')
 
         init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
 
         self.sess.run(init_op)
         print('End: initial session')
 
-    def streaming(self, step, stream_op, metric_op, name):
-        def get_feed(name):
-            if name == 'train':
-                return {
-                    self.dataset.files: self.dataset.filenames[name],
-                    self.dropout1: 0.25, \
-                    self.dropout2: 0.25, \
-                    self.dropout3: 1 - 0.298224 \
-                }
-            elif name == 'test':
-                return {
-                    self.dataset.files: self.dataset.filenames[name],
-                    self.dropout1: 1, \
-                    self.dropout2: 1, \
-                    self.dropout3: 1 \
-                }
-
-
-        self.sess.run(tf.local_variables_initializer())
-        self.sess.run(self.dataset.iterator.initializer, feed_dict = { self.dataset.files: self.dataset.filenames[name] })
-
-        while True:
-
-            if name == 'train':
-                self.sess.run(tf.local_variables_initializer())
-
-            try:
-                self.sess.run(stream_op, feed_dict = get_feed(name))
-
-            except tf.errors.OutOfRangeError:
-                metric_eval = self.sess.run(metric_op)
-                if self.tb != None:
-                    writer[name].add_summary(metric_eval[len(metric_eval) - 1], step)
-                break
-
     def train(self, epochs = 800):
-
-        train_step = [self.train_op, self.acc_update, self.loss_update, self.auc_update]
-        test_step = [self.acc_update, self.loss_update, self.auc_update]
-        metric = [self.acc, self.loss, self.auc]
-
-        if self.tb != None:
-            metric.append(self.tb)
 
         for i in range(1, epochs + 1):
 
-            self.streaming(step = i, stream_op = train_step, metric_op = metric, name = 'train')
-            self.streaming(step = i, stream_op = test_step, metric_op = metric, name = 'test')
+            self.sess.run(self.dataset.iterator.initializer, feed_dict = {
+                self.dataset.files: self.dataset.trainfiles
+            })
+
+            while True:
+
+                try:
+                    _, acc = self.sess.run([self.train_op, self.accuracy], feed_dict = {
+                        self.dataset.files: self.dataset.trainfiles,
+                        self.dropout1: 0.25, \
+                        self.dropout2: 0.25, \
+                        self.dropout3: 1 - 0.298224
+                    })
+
+                except tf.errors.OutOfRangeError:
+                    break
+
+            self.sess.run(tf.local_variables_initializer())
+            self.sess.run(self.dataset.iterator.initializer, feed_dict = {
+                self.dataset.files: self.dataset.testfiles
+            })
+
+            while True:
+
+                try:
+                    self.sess.run(self.auc_update, feed_dict = {
+                        self.dataset.files: self.dataset.testfiles,
+                        self.dropout1: 1, \
+                        self.dropout2: 1, \
+                        self.dropout3: 1
+                    })
+
+                except:
+                    print(self.sess.run(self.auc))
+                    break
 
     def close(self):
         self.sess.close()
