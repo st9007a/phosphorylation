@@ -19,6 +19,8 @@ class MusiteDeepModel():
         self.session_init()
 
     def build_model(self):
+        print('Start: build model')
+
         data_pipeline = self.dataset.iterator.get_next()
 
         x = data_pipeline[0]
@@ -83,7 +85,10 @@ class MusiteDeepModel():
 
             self.tb = tf.summary.merge_all()
 
+        print('End: build model')
+
     def session_init(self):
+        print('Start: initial session')
 
         self.sess = tf.Session()
 
@@ -94,6 +99,7 @@ class MusiteDeepModel():
         init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
 
         self.sess.run(init_op)
+        print('End: initial session')
 
     def train(self, epochs = 800):
 
