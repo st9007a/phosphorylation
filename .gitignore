@@ -2,6 +2,7 @@ __pycache__/
 *.swp
 log
 tmp
+*.tfrecord
 *.ignore
 *.csv
 *.npy
