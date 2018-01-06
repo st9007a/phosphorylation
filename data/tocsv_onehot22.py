@@ -16,6 +16,8 @@ with open(dst, 'a') as f:
     for line in raw:
         line = line.rstrip('\n').split(' ')
         data = line[0]
+        if data == '-1':
+            data = '0'
 
         for c in line[2]:
             vec = [0] * 22
