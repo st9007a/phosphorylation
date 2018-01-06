@@ -1,6 +1,6 @@
 # Phosphorylation
 
-## Nameing Description
+## Encoding Rule
 
 ### onehot21
 
@@ -21,6 +21,8 @@ ignore **X** symbol.
 encode 20 kinds of amino acid, **X** symbol to onehot vector.
 ignore **pad** symbol.
 
+## Network
+
 ### nobn
 
 disable all batch normalization
@@ -32,3 +34,7 @@ set padding = 'VALID' to all conv2d
 ### errorconv
 
 for first convolution layer, use 1x21 size filter, 1x22 stride and **onehot22** encoding
+
+## Train
+
+`python3 train.py [Encoding Rule]`
