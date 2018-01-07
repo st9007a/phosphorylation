@@ -29,9 +29,9 @@ class MusiteDeepModel():
 
         x_reshape = tf.reshape(x, [-1, 1, 33, 21])
 
-        h_conv1, self.dropout1 = conv_layer(x_reshape, num_fms = 200, filter_size = [1, 21], strides = [1, 1, 1, 21], dropout = True)
-        h_conv2, self.dropout2 = conv_layer(h_conv1, num_fms = 150, filter_size = [9, 1], strides = [1, 1, 1, 1], dropout = True)
-        h_conv3, _ = conv_layer(h_conv2, num_fms = 200, filter_size = [10, 1], strides = [1, 1, 1, 1])
+        h_conv1, self.dropout1 = conv_layer(x_reshape, num_fms = 200, filter_size = [1, 21], strides = [1, 21], dropout = True)
+        h_conv2, self.dropout2 = conv_layer(h_conv1, num_fms = 150, filter_size = [9, 1], strides = [1, 1], dropout = True)
+        h_conv3, _ = conv_layer(h_conv2, num_fms = 200, filter_size = [10, 1], strides = [1, 1])
 
         seq_domain_entry = tf.reshape(h_conv3, [-1, 33, 200])
         fm_domain_entry = tf.transpose(seq_domain_entry, perm = [0, 2, 1])
