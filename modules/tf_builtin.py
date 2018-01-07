@@ -48,10 +48,10 @@ def batch_normalization(entry_tensor):
     return bn
 
 def conv_layer(input_tensor, num_fms, filter_size, strides, dropout = None, act = tf.nn.relu, padding = 'SAME'):
-    curr = int(input_tensor.get_shape()[3])
+    curr = int(input_tensor.get_shape()[1])
     w = weight_var(filter_size + [curr, num_fms])
     b = bias_var([num_fms])
-    h = tf.nn.conv2d(input_tensor, w, strides = strides, padding = padding) + b
+    h = tf.nn.conv2d(input_tensor, w, strides = strides, padding = padding, data_format = 'NCHW') + b
     h = batch_normalization(h)
 
     dropout_layer = None

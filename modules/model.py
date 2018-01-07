@@ -27,9 +27,9 @@ class MusiteDeepModel():
         x = data_pipeline[0]
         y = tf.reshape(data_pipeline[1], [-1, 2])
 
-        x_reshape = tf.reshape(x, [-1, 33, 21, 1])
+        x_reshape = tf.reshape(x, [-1, 1, 33, 21])
 
-        h_conv1, self.dropout1 = conv_layer(x_reshape, num_fms = 200, filter_size = [1, 21], strides = [1, 1, 21, 1], dropout = True)
+        h_conv1, self.dropout1 = conv_layer(x_reshape, num_fms = 200, filter_size = [1, 21], strides = [1, 1, 1, 21], dropout = True)
         h_conv2, self.dropout2 = conv_layer(h_conv1, num_fms = 150, filter_size = [9, 1], strides = [1, 1, 1, 1], dropout = True)
         h_conv3, _ = conv_layer(h_conv2, num_fms = 200, filter_size = [10, 1], strides = [1, 1, 1, 1])
 
