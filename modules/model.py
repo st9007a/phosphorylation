@@ -8,7 +8,7 @@ from modules.tf_builtin import *
 
 class MusiteDeepModel():
 
-    def __init__(self, dataset, logdir = None):
+    def __init__(self, dataset, logdir):
 
         self.dataset = dataset
         self.logdir = logdir
@@ -73,12 +73,11 @@ class MusiteDeepModel():
 
         self.train_op = tf.train.AdamOptimizer(5e-4).minimize(loss)
 
-        if self.logdir != None:
-            tf.summary.scalar('Accuracy', self.acc)
-            tf.summary.scalar('AUC', self.auc)
-            tf.summary.scalar('Loss', self.loss)
+        tf.summary.scalar('Accuracy', self.acc)
+        tf.summary.scalar('AUC', self.auc)
+        tf.summary.scalar('Loss', self.loss)
 
-            self.tb = tf.summary.merge_all()
+        self.tb = tf.summary.merge_all()
 
         print('End: build model')
 
@@ -87,9 +86,8 @@ class MusiteDeepModel():
 
         self.sess = tf.Session()
 
-        if self.tb != None:
-            self.train_writer = tf.summary.FileWriter(self.logdir + '/train', self.sess.graph)
-            self.test_writer = tf.summary.FileWriter(self.logdir + '/test')
+        self.train_writer = tf.summary.FileWriter(self.logdir + '/train', self.sess.graph)
+        self.test_writer = tf.summary.FileWriter(self.logdir + '/test')
 
         init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
 
@@ -99,9 +97,7 @@ class MusiteDeepModel():
     def train(self, epochs):
 
         update_op = [self.acc_update, self.auc_update, self.loss_update]
-        metrics_op = [self.acc, self.auc, self.loss]
-        if self.tb != None:
-            metrics_op.append(self.tb)
+        metrics_op = [self.acc, self.auc, self.loss, self.tb]
 
         for i in range(1, epochs + 1):
             print(str(i) + '/' + str(epochs), end = '\r')
@@ -118,9 +114,8 @@ class MusiteDeepModel():
                 self.dropout3: 1 - 0.298224
             })
 
-            metrics = self.sess.run(metrics_op)
-            if self.tb != None:
-                self.train_writer.add_summary(metrics[3], i - 1)
+            _, _, _, tb = self.sess.run(metrics_op)
+            self.train_writer.add_summary(tb, i - 1)
 
             while True:
 
@@ -154,9 +149,8 @@ class MusiteDeepModel():
                     break
 
             # Metrics test
-            metrics = self.sess.run(metrics_op)
-            if self.tb != None:
-                self.test_writer.add_summary(metrics[3], i)
+            _, _, _, tb = self.sess.run(metrics_op)
+            self.test_writer.add_summary(tb, i)
 
     def close(self):
         self.sess.close()
