@@ -11,9 +11,12 @@ from modules.dataset import Dataset
 if __name__ == '__main__':
 
     arg_parser = ArgumentParser()
-    arg_parser.add_argument('--force', '-f', action = 'store_true', help = 'force to write log in LOGDIR')
-    arg_parser.add_argument('--logdir', '-l', help = 'setup tensorboard log directory')
-    arg_parser.add_argument('--encode', '-e', default = 'identity', help = 'setup encodeing function. default run without encode')
+    arg_parser.add_argument('--force', '-f', action = 'store_true', help = 'Force to write log in LOGDIR')
+    arg_parser.add_argument('--logdir', '-l', help = 'Setup tensorboard log directory')
+    arg_parser.add_argument('--encode', '-e', default = 'identity', help = \
+                            'Setup encodeing function. default run without encode\n'
+                            'Option: identity onehot21 onehot22'
+                            )
 
     args = arg_parser.parse_args()
     if args.logdir == None:
