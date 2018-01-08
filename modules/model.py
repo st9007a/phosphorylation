@@ -112,7 +112,7 @@ class MusiteDeepModel():
         while True:
 
             try:
-                self.sess.run([self.acc_update, self.auc_1_update, self.auc_2_update, self.loss_update], feed_dict = {
+                self.sess.run([self.acc_update, self.auc_update, self.loss_update], feed_dict = {
                     self.dataset.files: self.dataset.testfiles,
                     self.dataset.batch_size: 10000,
                     self.dropout_1: 1,
