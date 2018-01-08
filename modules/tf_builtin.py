@@ -45,19 +45,22 @@ def batch_normalization(entry_tensor):
                                    offset = offset, \
                                    scale = scale, \
                                    variance_epsilon = 1e-3)
+
     return bn
 
-def conv_layer(input_tensor, num_fms, filter_size, strides, dropout = None, act = tf.nn.relu, padding = 'SAME'):
-    curr = int(input_tensor.get_shape()[3])
-    w = weight_var(filter_size + [curr, num_fms])
-    b = bias_var([num_fms])
-    h = tf.nn.conv2d(input_tensor, w, strides = strides, padding = padding) + b
-    h = batch_normalization(h)
+def fused_batch_normalization(entry_tensor, training):
+    return tf.layers.batch_normalization(entry_tensor, axis = 1, fused = True, training = training)
 
-    dropout_layer = None
-    if dropout is True:
-        dropout_layer = tf.placeholder(tf.float32)
-        h = tf.nn.dropout(h, keep_prob = dropout_layer)
+def conv_layer(input_tensor, num_fms, filter_size, strides, training, dropout = None, act = tf.nn.relu, padding = 'SAME'):
+    # curr = int(input_tensor.get_shape()[3])
+    # w = weight_var(filter_size + [curr, num_fms])
+    # b = bias_var([num_fms])
+    # h = tf.nn.conv2d(input_tensor, w, strides = strides, padding = padding) + b
+    h = tf.layers.conv2d(input_tensor, filters = num_fms, kernel_size = filter_size, strides = strides, padding = padding, data_format = 'channels_first')
+    h = fused_batch_normalization(h, training)
+
+    if dropout is not None:
+        h = tf.nn.dropout(h, keep_prob = dropout)
     h = act(h)
 
-    return h, dropout_layer
+    return h
