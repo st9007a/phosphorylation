@@ -30,7 +30,6 @@ if __name__ == '__main__':
         encode = args.encode, \
         trainfiles = ['data/baseline/train.tfrecord'], \
         testfiles = ['data/baseline/test.tfrecord'], \
-        batch_size = 200, \
         parallel_call = 4 \
     )
 

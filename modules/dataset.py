@@ -7,12 +7,6 @@ def _encode_onehot21(x):
     x = tf.unstack(x, axis = 0)
     x = [tf.where(tf.equal(tf.reduce_sum(t), 0), tf.constant([0.05] * 20 + [0], tf.float32), t) for t in x]
     x = tf.stack(x, axis = 0)
-    # x = tf.map_fn(
-    #     lambda t: tf.where(tf.equal(tf.reduce_sum(t), 0), tf.constant([0.05] * 20 + [0], tf.float32), t), \
-    #     elems = x, \
-    #     dtype = tf.float32, \
-    #     parallel_iterations = 10 \
-    # )
 
     return x
 
@@ -58,13 +52,13 @@ if __name__ == '__main__':
 
 class Dataset():
 
-    def __init__(self, encode, trainfiles, testfiles, batch_size, parallel_call = 1):
+    def __init__(self, encode, trainfiles, testfiles, parallel_call = 1):
 
         self.trainfiles = trainfiles
         self.testfiles = testfiles
         self.encode_func = encode_func_map[encode]
 
-        self.dataset = self.data_pipeline(batch_size, parallel_call)
+        self.dataset = self.data_pipeline(parallel_call)
         self.iterator = self.dataset.make_initializable_iterator()
 
     def _parse_tfrecord(self, example_proto):
@@ -81,15 +75,16 @@ class Dataset():
         y = tf.cast(y, tf.float32)
         return self.encode_func(x), y
 
-    def data_pipeline(self, batch_size, parallel_call):
+    def data_pipeline(self, parallel_call):
 
         with tf.device('/cpu:0'):
 
             self.files = tf.placeholder(tf.string, shape = [None])
+            self.batch_size = tf.placeholder(tf.int64)
 
             dataset = tf.data.TFRecordDataset(self.files)
             dataset = dataset.map(self._parse_tfrecord, num_parallel_calls = parallel_call)
             dataset = dataset.shuffle(buffer_size = 10000)
-            dataset = dataset.batch(batch_size)
+            dataset = dataset.batch(self.batch_size)
 
             return dataset

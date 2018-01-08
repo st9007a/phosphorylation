@@ -27,11 +27,11 @@ class MusiteDeepModel():
         x = data_pipeline[0]
         y = tf.reshape(data_pipeline[1], [-1, 2])
 
-        x_reshape = tf.reshape(x, [-1, 1, 33, 21])
+        x_reshape = tf.reshape(x, [-1, 33, 22, 1])
 
-        h_conv1, self.dropout1 = conv_layer(x_reshape, num_fms = 200, filter_size = [1, 21], strides = [1, 21], dropout = True)
-        h_conv2, self.dropout2 = conv_layer(h_conv1, num_fms = 150, filter_size = [9, 1], strides = [1, 1], dropout = True)
-        h_conv3, _ = conv_layer(h_conv2, num_fms = 200, filter_size = [10, 1], strides = [1, 1])
+        h_conv1, self.dropout1 = conv_layer(x_reshape, num_fms = 200, filter_size = [1, 22], strides = [1, 1, 22, 1], dropout = True)
+        h_conv2, self.dropout2 = conv_layer(h_conv1, num_fms = 150, filter_size = [9, 1], strides = [1, 1, 1, 1], dropout = True)
+        h_conv3, _ = conv_layer(h_conv2, num_fms = 200, filter_size = [10, 1], strides = [1, 1, 1, 1])
 
         seq_domain_entry = tf.reshape(h_conv3, [-1, 33, 200])
         fm_domain_entry = tf.transpose(seq_domain_entry, perm = [0, 2, 1])
@@ -104,13 +104,15 @@ class MusiteDeepModel():
 
             self.sess.run(tf.local_variables_initializer())
             self.sess.run(self.dataset.iterator.initializer, feed_dict = {
-                self.dataset.files: self.dataset.trainfiles
+                self.dataset.files: self.dataset.trainfiles,
+                self.dataset.batch_size: 200
             })
 
             self.sess.run([self.train_op] + update_op, feed_dict = {
                 self.dataset.files: self.dataset.trainfiles,
-                self.dropout1: 0.25, \
-                self.dropout2: 0.25, \
+                self.dataset.batch_size: 200,
+                self.dropout1: 0.25,
+                self.dropout2: 0.25,
                 self.dropout3: 1 - 0.298224
             })
 
@@ -122,8 +124,9 @@ class MusiteDeepModel():
                 try:
                     self.sess.run(self.train_op, feed_dict = {
                         self.dataset.files: self.dataset.trainfiles,
-                        self.dropout1: 0.25, \
-                        self.dropout2: 0.25, \
+                        self.dataset.batch_size: 200,
+                        self.dropout1: 0.25,
+                        self.dropout2: 0.25,
                         self.dropout3: 1 - 0.298224
                     })
 
@@ -132,7 +135,8 @@ class MusiteDeepModel():
 
             self.sess.run(tf.local_variables_initializer())
             self.sess.run(self.dataset.iterator.initializer, feed_dict = {
-                self.dataset.files: self.dataset.testfiles
+                self.dataset.files: self.dataset.testfiles,
+                self.dataset.batch_size: 10000
             })
 
             while True:
@@ -140,8 +144,9 @@ class MusiteDeepModel():
                 try:
                     self.sess.run([self.acc_update, self.auc_update, self.loss_update], feed_dict = {
                         self.dataset.files: self.dataset.testfiles,
-                        self.dropout1: 1, \
-                        self.dropout2: 1, \
+                        self.dataset.batch_size: 10000,
+                        self.dropout1: 1,
+                        self.dropout2: 1,
                         self.dropout3: 1
                     })
 
