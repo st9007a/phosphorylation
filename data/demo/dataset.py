@@ -26,6 +26,7 @@ def _parse_tfrecord(example_proto):
     x = tf.decode_raw(parsed_features['x'], tf.uint8)
     y = tf.decode_raw(parsed_features['y'], tf.uint8)
     return _encode(x, y)
+    # return x, y
 
 
 with tf.device('/cpu:0'):
